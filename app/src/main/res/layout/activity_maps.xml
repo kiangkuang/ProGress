@@ -67,7 +67,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:onClick="clear"
+            android:onClick="clearButton"
             android:text="Clear"
             android:textColor="@android:color/holo_red_dark" />
 
@@ -77,7 +77,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:enabled="false"
-            android:onClick="start"
+            android:onClick="startButton"
             android:text="Start"
             android:textColor="#55669900" />
 
