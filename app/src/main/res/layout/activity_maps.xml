@@ -1,23 +1,51 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <fragment
-        android:id="@+id/place_autocomplete_fragment"
-        android:name="com.google.android.gms.location.places.ui.PlaceAutocompleteFragment"
+    <android.support.v7.widget.Toolbar
+        android:id="@+id/my_toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
-    <fragment xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:map="http://schemas.android.com/apk/res-auto"
-        xmlns:tools="http://schemas.android.com/tools"
-        android:id="@+id/map"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        tools:context=".MainActivity" />
+        android:layout_height="1dp"
+        android:layout_weight="1">
+
+        <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:id="@+id/map"
+            android:name="com.google.android.gms.maps.SupportMapFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            tools:context=".MainActivity" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:layout_alignTop="@id/map"
+            android:layout_margin="12dp"
+            android:alpha="0.75"
+            android:background="@android:color/white"
+            android:padding="6dp">
+
+            <Spinner
+                android:id="@+id/mapType"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+    </RelativeLayout>
+
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -25,8 +53,7 @@
         android:orientation="horizontal"
         android:paddingLeft="5dp"
         android:paddingRight="5dp"
-        android:paddingTop="5dp"
-        android:background="@color/material_grey_600">
+        android:paddingTop="5dp">
 
         <ToggleButton
             android:id="@+id/destinationToggle"
@@ -34,10 +61,10 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:checked="true"
-            android:onClick="toggledDestination"
-            android:text="Pick destination"
-            android:textOff="Pick destination"
-            android:textOn="Pick destination" />
+            android:onClick="toggledButton"
+            android:text="@string/setDestination"
+            android:textOff="@string/setDestination"
+            android:textOn="@string/setDestination" />
 
         <ToggleButton
             android:id="@+id/distanceToggle"
@@ -46,10 +73,10 @@
             android:layout_weight="1"
             android:checked="false"
             android:enabled="false"
-            android:onClick="toggledDist"
-            android:text="Set distance"
-            android:textOff="Set distance"
-            android:textOn="Set distance" />
+            android:onClick="toggledButton"
+            android:text="@string/setDistance"
+            android:textOff="@string/setDistance"
+            android:textOn="@string/setDistance" />
 
     </LinearLayout>
 
@@ -59,17 +86,17 @@
         android:orientation="horizontal"
         android:paddingBottom="5dp"
         android:paddingLeft="5dp"
-        android:paddingRight="5dp"
-        android:background="@color/material_grey_600">
+        android:paddingRight="5dp">
 
         <Button
             android:id="@+id/clear"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:enabled="false"
             android:onClick="clearButton"
             android:text="Clear"
-            android:textColor="@android:color/holo_red_dark" />
+            android:textColor="#55cc0000" />
 
         <Button
             android:id="@+id/start"
