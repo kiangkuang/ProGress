@@ -52,6 +52,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.pathsense.android.sdk.location.PathsenseLocationProviderApi;
 
 import java.util.ArrayList;
 
@@ -71,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private GoogleApiClient googleApiClient;
     private NotificationManager notificationManager;
+    private PathsenseLocationProviderApi mApi;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -102,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .addApi(LocationServices.API)
                     .build();
         }
+        mApi = PathsenseLocationProviderApi.getInstance(this);
     }
 
     @Override
@@ -214,9 +217,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         } else if (lastLocation != null) {
             map.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), 15));
         }
-        if (radiusCircle != null && toRadiusMeters(destinationMarker.getPosition(), new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude())) < radiusCircle.getRadius()) {
-            radiusCircle.setFillColor(Color.argb(50, 0, 255, 0));
-        }
     }
 
     @Override
@@ -263,25 +263,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             // for ActivityCompat#requestPermissions for more details.
             return;
         }
-        Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-
-        int color;
-        if (toRadiusMeters(destinationMarker.getPosition(), latLng) < toRadiusMeters(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), destinationMarker.getPosition())) {
-            color = Color.argb(50, 0, 0, 255);
-        } else {
-            color = Color.argb(50, 255, 0, 0);
-        }
 
         if (radiusCircle == null) {
             radiusCircle = map.addCircle(new CircleOptions()
                     .center(destinationMarker.getPosition())
                     .radius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100))
-                    .fillColor(color)
+                    .fillColor(Color.argb(50, 0, 0, 255))
                     .strokeColor(Color.argb(100, 0, 0, 255)));
             setStep(3);
         } else {
             radiusCircle.setRadius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100));
-            radiusCircle.setFillColor(color);
         }
 
         destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
@@ -422,54 +413,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void startGeofence() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        LocationServices.GeofencingApi.addGeofences(
-                googleApiClient,
-                getGeofencingRequest(),
-                getPendingIntent(GeofenceTransitionsIntentService.class, false)
-        ).setResultCallback(this);
+
     }
 
     private void stopGeofence() {
-        ArrayList<String> geofenceIdList;
-        geofenceIdList = new ArrayList<>();
-        geofenceIdList.add("ProGress");
 
-        LocationServices.GeofencingApi.removeGeofences(
-                googleApiClient,
-                // This is the same pending intent that was used in addGeofences().
-                geofenceIdList
-        ).setResultCallback(this); // Result processed in onResult().
-    }
-
-    private GeofencingRequest getGeofencingRequest() {
-        Geofence geofence = new Geofence.Builder()
-                // Set the request ID of the geofence. This is a string to identify this
-                // geofence.
-                .setRequestId("ProGress")
-
-                .setCircularRegion(
-                        destinationMarker.getPosition().latitude,
-                        destinationMarker.getPosition().longitude,
-                        (float) radiusCircle.getRadius()
-                )
-                .setExpirationDuration(Geofence.NEVER_EXPIRE)
-                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER)
-                .build();
-
-        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER);
-        builder.addGeofence(geofence);
-        return builder.build();
     }
 
     private void sendNotification(Class cls, String title, String text, int priority, boolean ongoing) {

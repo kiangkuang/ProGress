@@ -27,6 +27,12 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="@string/google_maps_key" />
+        <meta-data
+            android:name="com.pathsense.android.sdk.CLIENT_ID"
+            android:value="B6TF7nuNkNprzbHZyU70sDTXDquNrbcAM4BinHQa" />
+        <meta-data
+            android:name="com.pathsense.android.sdk.API_KEY"
+            android:value="KZsgWJ2d9x2DlMgg9woyA4hizmd9CoSo8W3VrNB7" />
 
         <activity
             android:name=".MainActivity"
@@ -42,6 +48,10 @@
             android:name=".GeofenceTransitionsIntentService"
             android:exported="true" />
 
+        <receiver
+            android:name=".PathsenseGeofenceGeofenceEventReceiver"
+            android:enabled="true"
+            android:exported="true" />
     </application>
 
 </manifest>
