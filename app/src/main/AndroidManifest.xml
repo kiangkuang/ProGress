@@ -44,10 +44,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".GeofenceTransitionsIntentService"
-            android:exported="true" />
-
         <receiver
             android:name=".PathsenseGeofenceGeofenceEventReceiver"
             android:enabled="true"

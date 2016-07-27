@@ -4,8 +4,10 @@ import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -16,6 +18,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.TaskStackBuilder;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -34,8 +37,6 @@ import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-import com.google.android.gms.location.Geofence;
-import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.ui.PlaceAutocomplete;
@@ -54,8 +55,6 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.pathsense.android.sdk.location.PathsenseLocationProviderApi;
 
-import java.util.ArrayList;
-
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, OnMapClickListener, OnMarkerDragListener, GoogleApiClient.ConnectionCallbacks, ResultCallback<Status>, AdapterView.OnItemSelectedListener {
 
     private static final String TAG = "MainActivity";
@@ -73,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private GoogleApiClient googleApiClient;
     private NotificationManager notificationManager;
     private PathsenseLocationProviderApi mApi;
+    private BroadcastReceiver mMessageReceiver;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -105,6 +105,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     .build();
         }
         mApi = PathsenseLocationProviderApi.getInstance(this);
+
+        mMessageReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                sendNotification(MainActivity.class, "ProGress", "Arrived!", Notification.PRIORITY_MAX, false);
+                mApi.removeGeofences();
+                setStep(3);
+            }
+        };
+        LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver,
+                new IntentFilter("geofenceEvent"));
     }
 
     @Override
@@ -136,39 +147,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         map.setOnMapClickListener(this);
         map.setOnMarkerDragListener(this);
 
-        Intent intent = getIntent();
-        if (intent != null && intent.getExtras() != null) {
-
-            Bundle bundle = intent.getParcelableExtra("bundle");
-            LatLng destPos = bundle.getParcelable("destination");
-            if (destPos != null) {
-                destinationMarker = map.addMarker(new MarkerOptions()
-                        .position(destPos)
-                        .draggable(true)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                        .title("Destination")
-                        .snippet("Hold marker to drag to new position")
-                        .alpha(0.7f));
-            }
-            if (intent.getDoubleExtra("radius", -1) != -1) {
-                radiusCircle = map.addCircle(new CircleOptions()
-                        .center(destinationMarker.getPosition())
-                        .radius(intent.getDoubleExtra("radius", 0))
-                        .fillColor(Color.argb(50, 0, 0, 255))
-                        .strokeColor(Color.argb(100, 0, 0, 255)));
-                destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
-            }
-            LatLng searchPos = bundle.getParcelable("searchPos");
-            if (searchPos != null) {
-                searchMarker = map.addMarker(new MarkerOptions()
-                        .position(searchPos)
-                        .title(intent.getStringExtra("searchName"))
-                        .snippet(intent.getStringExtra("searchAddress"))
-                        .alpha(0.7f));
-            }
-            setMode(intent.getIntExtra("mode", DESTINATION));
-            setStep(intent.getIntExtra("step", 1));
-        } else {
+        //Intent intent = getIntent();
+        //if (!intent.getBooleanExtra("notification", false)) {
             destinationMarker = null;
             radiusCircle = null;
             searchMarker = null;
@@ -176,7 +156,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             setStep(1);
 
             Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
-        }
+        //}
     }
 
     private void enableMyLocation() {
@@ -276,7 +256,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
-        //Toast.makeText(getApplicationContext(), (int) radiusCircle.getRadius() + "m", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -413,15 +392,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void startGeofence() {
-
+        mApi.addGeofence("MYGEOFENCE", destinationMarker.getPosition().latitude, destinationMarker.getPosition().longitude, (int) radiusCircle.getRadius(), PathsenseGeofenceGeofenceEventReceiver.class);
     }
 
     private void stopGeofence() {
-
+        mApi.removeGeofences();
     }
 
     private void sendNotification(Class cls, String title, String text, int priority, boolean ongoing) {
-        PendingIntent notificationPendingIntent = getPendingIntent(cls, true);
+        PendingIntent notificationPendingIntent = getPendingIntent(cls);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
         builder.setSmallIcon(R.drawable.notification_icon)
@@ -442,28 +421,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         notificationManager.notify(0, builder.build());
     }
 
-    private PendingIntent getPendingIntent(Class cls, boolean activity) {
+    private PendingIntent getPendingIntent(Class cls) {
         Intent notificationIntent = new Intent(this, cls);
-        Bundle bundle = new Bundle();
-        bundle.putParcelable("destination", destinationMarker.getPosition());
-        if (searchMarker != null) {
-            bundle.putParcelable("searchPos", searchMarker.getPosition());
-            notificationIntent.putExtra("searchName", searchMarker.getTitle());
-            notificationIntent.putExtra("searchAddress", searchMarker.getSnippet());
-        }
-        notificationIntent.putExtra("bundle", bundle);
-        notificationIntent.putExtra("radius", radiusCircle.getRadius());
-        notificationIntent.putExtra("mode", mode);
-        notificationIntent.putExtra("step", step);
+        notificationIntent.setAction(Intent.ACTION_MAIN);
+        notificationIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        notificationIntent.putExtra("notification", true);
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
-        if (activity) {
-            TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
-            stackBuilder.addParentStack(MainActivity.class);
-            stackBuilder.addNextIntent(notificationIntent);
-            return stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
-        } else {
-            return PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        }
+        return PendingIntent.getActivity(this, 0, notificationIntent, 0);
     }
 
     public void onClickSearch(MenuItem item) {
@@ -541,5 +506,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     public void onClickSettings(MenuItem item) {
         Toast.makeText(MainActivity.this, "SETTINGS HERE", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Unregister since the activity is about to be closed.
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
+
+        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.cancelAll();
+
+        super.onDestroy();
     }
 }
