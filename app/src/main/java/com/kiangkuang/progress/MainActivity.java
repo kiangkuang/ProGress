@@ -17,7 +17,6 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.TaskStackBuilder;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -64,11 +63,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private int mode; // destination or distance
     private int step;
-    private GoogleMap map;
     private Marker searchMarker;
     private Marker destinationMarker;
     private Circle radiusCircle;
 
+    private GoogleMap map;
     private GoogleApiClient googleApiClient;
     private NotificationManager notificationManager;
     private PathsenseLocationProviderApi mApi;
@@ -147,16 +146,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         map.setOnMapClickListener(this);
         map.setOnMarkerDragListener(this);
 
-        //Intent intent = getIntent();
-        //if (!intent.getBooleanExtra("notification", false)) {
-            destinationMarker = null;
-            radiusCircle = null;
-            searchMarker = null;
-            setMode(DESTINATION);
-            setStep(1);
+        Data.load(this);
+        double loadedRadius = Data.radius; // placing destination would replace Data.radius, Data.mode, Data.step
+        int loadedMode = Data.mode;
+        int loadedStep = Data.step;
 
+        if (Data.destLat != 0 && Data.destLong != 0) {
+            placeDestinationMarker(new LatLng(Data.destLat, Data.destLong));
+        }
+        if (loadedRadius != 0) {
+            placeDistanceCircle(loadedRadius);
+        }
+
+        searchMarker = null;
+        setMode(loadedMode);
+        setStep(loadedStep);
+
+        if (step == 1) {
             Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
-        //}
+        }
     }
 
     private void enableMyLocation() {
@@ -187,7 +195,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
         Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-        if (destinationMarker != null) {
+        if (lastLocation != null && destinationMarker != null) {
             double lat1 = Math.min(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
             double lat2 = Math.max(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
             double lng1 = Math.min(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
@@ -208,6 +216,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 placeDistanceCircle(latLng);
             }
         }
+        Data.save(this, mode, step, destinationMarker, radiusCircle);
     }
 
     private void placeDestinationMarker(LatLng latLng) {
@@ -258,6 +267,32 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
     }
 
+    private void placeDistanceCircle(double radius) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+
+        if (radiusCircle == null) {
+            radiusCircle = map.addCircle(new CircleOptions()
+                    .center(destinationMarker.getPosition())
+                    .radius(Math.max(radius, 100))
+                    .fillColor(Color.argb(50, 0, 0, 255))
+                    .strokeColor(Color.argb(100, 0, 0, 255)));
+            setStep(3);
+        } else {
+            radiusCircle.setRadius(Math.max(radius, 100));
+        }
+
+        destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
+    }
+
     @Override
     public void onMarkerDragStart(Marker marker) {
         if (radiusCircle != null) {
@@ -283,6 +318,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             radiusCircle.setStrokeColor(Color.argb(100, 0, 0, 255));
         }
         marker.setAlpha(0.7f);
+        Data.save(this, mode, step, destinationMarker, radiusCircle);
     }
 
     public void toggledButton(View view) {
@@ -308,6 +344,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         this.mode = mode;
+        Data.save(this, mode, step, destinationMarker, radiusCircle);
     }
 
     private void setStep(int step) {
@@ -355,6 +392,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 break;
         }
         this.step = step;
+        Data.save(this, mode, step, destinationMarker, radiusCircle);
     }
 
     public void clearButton(View view) {
@@ -513,8 +551,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Unregister since the activity is about to be closed.
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
 
+        stopGeofence();
+
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancelAll();
+
+        if (step == 4) {
+            setStep(3);
+        }
 
         super.onDestroy();
     }
