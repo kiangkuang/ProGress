@@ -61,6 +61,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final int DISTANCE = 2;
     private static final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
 
+    private static final int REQUEST_LOCATION_PERMISSION_GET = 5001;
+    private static final int REQUEST_LOCATION_PERMISSION_CURRENT = 5002;
+
     private int mode; // destination or distance
     private int step;
     private Marker searchMarker;
@@ -168,43 +171,89 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void enableMyLocation() {
+
         // Access to the location has been granted to the app.
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // ask for permission
+            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQUEST_LOCATION_PERMISSION_CURRENT);
+
             return;
         }
+
         map.setMyLocationEnabled(true);
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+
+        Location lastLocation = getLastLocation();
+        if(lastLocation == null){
+            Log.d(TAG, "onConnected: lastLocation is null");
             return;
         }
-        Location lastLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-        if (lastLocation != null && destinationMarker != null) {
+
+        if (destinationMarker != null) {
             double lat1 = Math.min(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
             double lat2 = Math.max(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
             double lng1 = Math.min(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
             double lng2 = Math.max(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
             LatLngBounds bounds = new LatLngBounds(new LatLng(lat1, lng1), new LatLng(lat2, lng2));
             map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 200));
-        } else if (lastLocation != null) {
+        } else{
             map.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), 15));
         }
+    }
+
+    private Location getLastLocation(){
+
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // ask for permission
+            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQUEST_LOCATION_PERMISSION_GET);
+
+            return null;
+        }
+
+        return LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
+    }
+
+    @Override
+    public void onRequestPermissionsResult (int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
+
+        switch (requestCode) {
+            case REQUEST_LOCATION_PERMISSION_GET: {
+
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // resume function call previously interrupted by permission request
+                    onConnected(null);
+                }
+                break;
+            }
+            case REQUEST_LOCATION_PERMISSION_CURRENT:{
+
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // resume function call previously interrupted by permission request
+                    enableMyLocation();
+                }
+                break;
+            }
+        }
+
     }
 
     @Override
@@ -222,12 +271,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void placeDestinationMarker(LatLng latLng) {
         if (destinationMarker == null) {
             destinationMarker = map.addMarker(new MarkerOptions()
-                    .position(latLng)
-                    .draggable(true)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                    .title("Destination")
-                    .snippet("Hold marker to drag to new position")
-                    .alpha(0.7f));
+                .position(latLng)
+                .draggable(true)
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                .title("Destination")
+                .snippet("Hold marker to drag to new position")
+                .alpha(0.7f));
 
             // first time after destination placed, auto jump to distance mode
             setMode(DISTANCE);
@@ -242,23 +291,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void placeDistanceCircle(LatLng latLng) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
 
         if (radiusCircle == null) {
             radiusCircle = map.addCircle(new CircleOptions()
-                    .center(destinationMarker.getPosition())
-                    .radius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100))
-                    .fillColor(Color.argb(50, 0, 0, 255))
-                    .strokeColor(Color.argb(100, 0, 0, 255)));
+                .center(destinationMarker.getPosition())
+                .radius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100))
+                .fillColor(Color.argb(50, 0, 0, 255))
+                .strokeColor(Color.argb(100, 0, 0, 255)));
             setStep(3);
         } else {
             radiusCircle.setRadius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100));
@@ -268,23 +307,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void placeDistanceCircle(double radius) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
 
         if (radiusCircle == null) {
             radiusCircle = map.addCircle(new CircleOptions()
-                    .center(destinationMarker.getPosition())
-                    .radius(Math.max(radius, 100))
-                    .fillColor(Color.argb(50, 0, 0, 255))
-                    .strokeColor(Color.argb(100, 0, 0, 255)));
+                .center(destinationMarker.getPosition())
+                .radius(Math.max(radius, 100))
+                .fillColor(Color.argb(50, 0, 0, 255))
+                .strokeColor(Color.argb(100, 0, 0, 255)));
             setStep(3);
         } else {
             radiusCircle.setRadius(Math.max(radius, 100));
@@ -442,10 +471,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
         builder.setSmallIcon(R.drawable.notification_icon)
-                .setContentTitle(title)
-                .setContentText(text)
-                .setContentIntent(notificationPendingIntent)
-                .setPriority(priority);
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(notificationPendingIntent)
+            .setPriority(priority);
 
         if (ongoing) {
             builder.setOngoing(true);
@@ -489,10 +518,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
 
                 searchMarker = map.addMarker(new MarkerOptions()
-                        .position(place.getLatLng())
-                        .title(place.getName().toString())
-                        .snippet(place.getAddress().toString())
-                        .alpha(0.7f));
+                    .position(place.getLatLng())
+                    .title(place.getName().toString())
+                    .snippet(place.getAddress().toString())
+                    .alpha(0.7f));
 
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15));
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
