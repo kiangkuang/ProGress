@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -18,6 +19,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
@@ -61,11 +63,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final int DISTANCE = 2;
     private static final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
 
-    private static final int REQUEST_LOCATION_PERMISSION_GET = 5001;
-    private static final int REQUEST_LOCATION_PERMISSION_CURRENT = 5002;
+    private static final int REQUEST_LOCATION_PERMISSION = 5001;
 
-    private int mode; // destination or distance
-    private int step;
+    private int mode = 1; // destination or distance
+    private int step = 1;
     private Marker searchMarker;
     private Marker destinationMarker;
     private Circle radiusCircle;
@@ -88,7 +89,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        Toolbar myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
+        Toolbar myToolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(myToolbar);
 
         Spinner spinner = (Spinner) findViewById(R.id.mapType);
@@ -164,25 +165,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         searchMarker = null;
         setMode(loadedMode);
         setStep(loadedStep);
-
-        if (step == 1) {
-            Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void enableMyLocation() {
-
         // Access to the location has been granted to the app.
         if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
 
             // ask for permission
             ActivityCompat.requestPermissions(MainActivity.this, new String[]{
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            }, REQUEST_LOCATION_PERMISSION_CURRENT);
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQUEST_LOCATION_PERMISSION);
 
             return;
         }
@@ -192,9 +188,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-
         Location lastLocation = getLastLocation();
-        if(lastLocation == null){
+        if (lastLocation == null) {
             Log.d(TAG, "onConnected: lastLocation is null");
             return;
         }
@@ -205,55 +200,79 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             double lng1 = Math.min(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
             double lng2 = Math.max(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
             LatLngBounds bounds = new LatLngBounds(new LatLng(lat1, lng1), new LatLng(lat2, lng2));
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 200));
-        } else{
+            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 350));
+        } else {
             map.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), 15));
         }
     }
 
-    private Location getLastLocation(){
-
-        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            // ask for permission
-            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            }, REQUEST_LOCATION_PERMISSION_GET);
-
-            return null;
-        }
-
+    @SuppressWarnings("MissingPermission")
+    private Location getLastLocation() {
         return LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
     }
 
     @Override
-    public void onRequestPermissionsResult (int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults){
-
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
-            case REQUEST_LOCATION_PERMISSION_GET: {
-
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // resume function call previously interrupted by permission request
-                    onConnected(null);
-                }
-                break;
-            }
-            case REQUEST_LOCATION_PERMISSION_CURRENT:{
-
+            case REQUEST_LOCATION_PERMISSION: {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // resume function call previously interrupted by permission request
                     enableMyLocation();
                 }
+
+                if (grantResults.length > 0) {
+                    if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        // resume function call previously interrupted by permission request
+                        enableMyLocation();
+                        onConnected(null);
+
+                        if (step == 1) {
+                            Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
+                        }
+                    } else if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+                        // Should we show an explanation?
+                        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                            //Show permission explanation dialog...
+                            new AlertDialog.Builder(this)
+                                    .setTitle("Permission")
+                                    .setMessage("Location access is required for app to work.")
+                                    .setPositiveButton("Retry", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
+                                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                            }, REQUEST_LOCATION_PERMISSION);
+                                        }
+                                    })
+                                    .setNegativeButton("Quit", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            MainActivity.this.finish();
+                                            System.exit(0);
+                                        }
+                                    })
+                                    .setIcon(android.R.drawable.ic_dialog_alert)
+                                    .show();
+                        } else {
+                            //Never ask again selected, or device policy prohibits the app from having that permission.
+                            //So, disable that feature, or fall back to another situation...
+                            new AlertDialog.Builder(this)
+                                    .setTitle("Permission")
+                                    .setMessage("Location access was not granted.\nPlease allow manually in phone settings.")
+                                    .setNegativeButton("Quit", new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            MainActivity.this.finish();
+                                            System.exit(0);
+                                        }
+                                    })
+                                    .setIcon(android.R.drawable.ic_dialog_alert)
+                                    .show();
+                        }
+                    }
+                }
                 break;
             }
         }
-
     }
 
     @Override
@@ -271,52 +290,44 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void placeDestinationMarker(LatLng latLng) {
         if (destinationMarker == null) {
             destinationMarker = map.addMarker(new MarkerOptions()
-                .position(latLng)
-                .draggable(true)
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                .title("Destination")
-                .snippet("Hold marker to drag to new position")
-                .alpha(0.7f));
-
-            // first time after destination placed, auto jump to distance mode
-            setMode(DISTANCE);
-            setStep(2);
-            Toast.makeText(getApplicationContext(), "Tap the map to set alarm radius", Toast.LENGTH_SHORT).show();
+                    .position(latLng)
+                    .draggable(true)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                    .title("Destination")
+                    .snippet("Hold marker to drag to new position")
+                    .alpha(0.7f));
         } else {
             destinationMarker.setPosition(latLng);
             if (radiusCircle != null) {
                 radiusCircle.setCenter(latLng);
             }
         }
+
+        // first time after destination placed, auto jump to distance mode
+        if (Data.step == 1) {
+            Toast.makeText(getApplicationContext(), "Tap the map to set alarm radius", Toast.LENGTH_SHORT).show();
+            setMode(DISTANCE);
+            setStep(2);
+        }
     }
 
     private void placeDistanceCircle(LatLng latLng) {
-
-        if (radiusCircle == null) {
-            radiusCircle = map.addCircle(new CircleOptions()
-                .center(destinationMarker.getPosition())
-                .radius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100))
-                .fillColor(Color.argb(50, 0, 0, 255))
-                .strokeColor(Color.argb(100, 0, 0, 255)));
-            setStep(3);
-        } else {
-            radiusCircle.setRadius(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 100));
-        }
-
-        destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
+        placeDistanceCircle(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 50));
     }
 
     private void placeDistanceCircle(double radius) {
-
         if (radiusCircle == null) {
             radiusCircle = map.addCircle(new CircleOptions()
-                .center(destinationMarker.getPosition())
-                .radius(Math.max(radius, 100))
-                .fillColor(Color.argb(50, 0, 0, 255))
-                .strokeColor(Color.argb(100, 0, 0, 255)));
-            setStep(3);
+                    .center(destinationMarker.getPosition())
+                    .radius(Math.max(radius, 100))
+                    .fillColor(Color.argb(50, 0, 0, 255))
+                    .strokeColor(Color.argb(100, 0, 0, 255)));
         } else {
             radiusCircle.setRadius(Math.max(radius, 100));
+        }
+
+        if (Data.step == 2) {
+            setStep(3);
         }
 
         destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
@@ -437,6 +448,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         setMode(DESTINATION);
         setStep(1);
+
+        Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
     }
 
     public void startButton(View view) {
@@ -471,10 +484,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
         builder.setSmallIcon(R.drawable.notification_icon)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setContentIntent(notificationPendingIntent)
-            .setPriority(priority);
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(notificationPendingIntent)
+                .setPriority(priority);
 
         if (ongoing) {
             builder.setOngoing(true);
@@ -518,10 +531,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
 
                 searchMarker = map.addMarker(new MarkerOptions()
-                    .position(place.getLatLng())
-                    .title(place.getName().toString())
-                    .snippet(place.getAddress().toString())
-                    .alpha(0.7f));
+                        .position(place.getLatLng())
+                        .title(place.getName().toString())
+                        .snippet(place.getAddress().toString())
+                        .alpha(0.7f));
 
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15));
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
