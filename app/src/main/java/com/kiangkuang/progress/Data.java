@@ -3,51 +3,123 @@ package com.kiangkuang.progress;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.util.Log;
 
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 
 public class Data {
-    public static int mode = 1; // destination or distance
-    public static int step = 1;
-    public static double destLat = 0;
-    public static double destLong = 0;
-    public static double radius = 0;
+    public Mode mode; // destination or distance
+    public Status status; // 1 to 4
+    public Marker destination;
+    public Circle distance;
+    public Marker search;
+    private Activity activity;
+    private GoogleMap map;
 
-    public static void save(Activity activity, int mode, int step, Marker destinationMarker, Circle radiusCircle) {
-        Data.mode = mode;
-        Data.step = step;
-        if (destinationMarker != null) {
-            Data.destLat = destinationMarker.getPosition().latitude;
-            Data.destLong = destinationMarker.getPosition().longitude;
-        } else {
-            Data.destLat = Data.destLong = 0;
-        }
-        if (radiusCircle != null) {
-            Data.radius = radiusCircle.getRadius();
-        } else {
-            Data.radius = 0;
-        }
+    public Data(Activity activity, GoogleMap map) {
+        this.activity = activity;
+        this.map = map;
 
+        mode = Mode.DESTINATION;
+        status = Status.NONE;
+        destination = null;
+        distance = null;
+        search = null;
+    }
+
+    public Data setMode(Mode mode) {
+        this.mode = mode;
+        return this;
+    }
+
+    public Data setStatus(Status status) {
+        this.status = status;
+        return this;
+    }
+
+    public Data setDestination(LatLng latLng) {
+        if (destination == null) {
+            destination = map.addMarker(new MarkerOptions()
+                    .position(latLng)
+                    .draggable(true)
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
+                    .title("Destination")
+                    .snippet("Hold marker to drag to new position")
+                    .alpha(0.7f));
+        } else {
+            destination.setPosition(latLng);
+            if (distance != null) {
+                distance.setCenter(latLng);
+            }
+        }
+        return this;
+    }
+
+    public Data setSearch(Place place) {
+
+        if (search != null) {
+            search.remove();
+        }
+        search = map.addMarker(new MarkerOptions()
+                .position(place.getLatLng())
+                .title(place.getName().toString())
+                .snippet(place.getAddress().toString())
+                .alpha(0.7f));
+
+        return this;
+    }
+
+    public Data setDistance(double radius) {
+        if (distance == null) {
+            distance = map.addCircle(new CircleOptions()
+                    .center(destination.getPosition())
+                    .radius(Math.max(radius, 50))
+                    .fillColor(Color.argb(50, 0, 0, 255))
+                    .strokeColor(Color.argb(100, 0, 0, 255)));
+        } else {
+            distance.setRadius(Math.max(radius, 50));
+        }
+        return this;
+    }
+
+    public void save() {
         SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putInt("mode", Data.mode);
-        editor.putInt("step", Data.step);
-        editor.putFloat("destLat", (float) destLat);
-        editor.putFloat("destLong", (float) destLong);
-        editor.putFloat("radius", (float) radius);
+        editor.putInt("mode", mode.value);
+        editor.putInt("status", status.value);
+        editor.putFloat("destLat", (float) (destination == null ? 0 : destination.getPosition().latitude));
+        editor.putFloat("destLong", (float) (destination == null ? 0 : destination.getPosition().longitude));
+        editor.putFloat("distance", (float) (distance == null ? 0 : distance.getRadius()));
         editor.apply();
-        Log.i("ProGress", "Saved: mode " + Data.mode + ", step " + Data.step + ", lat " + destLat + ", long " + destLong + ", radius " + radius);
+        Log.i("ProGress", "Saved: mode " + mode + ", status " + status + ", dest " + (destination == null ? 0 : destination.getPosition().toString()) + ", dist " + (distance == null ? 0 : distance.getRadius()));
     }
 
-    public static void load(Activity activity) {
+    public void load() {
         SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
-        mode = Math.max(1, sharedPref.getInt("mode", 1));
-        step = Math.max(1, sharedPref.getInt("step", 1));
-        destLat = (double) sharedPref.getFloat("destLat", 0);
-        destLong = (double) sharedPref.getFloat("destLong", 0);
-        radius = (double) sharedPref.getFloat("radius", 0);
-        Log.i("ProGress", "Loaded: mode " + Data.mode + ", step " + Data.step + ", lat " + destLat + ", long " + destLong + ", radius " + radius);
+        mode = Mode.valueOf(sharedPref.getInt("mode", 0));
+        status = Status.valueOf(sharedPref.getInt("status", 0));
+
+        double destLat = (double) sharedPref.getFloat("destLat", 0);
+        double destLong = (double) sharedPref.getFloat("destLong", 0);
+        if (destLat != 0 || destLong != 0) {
+            setDestination(new LatLng(destLat, destLong));
+        }
+
+        double radius = (double) sharedPref.getFloat("distance", 0);
+        if (destination != null && radius != 0) {
+            setDistance(radius);
+        }
+
+        Log.i("ProGress", "Loaded: mode " + mode + ", status " + status + ", dest " + (destination == null ? 0 : destination.getPosition().toString()) + ", dist " + (distance == null ? 0 : distance.getRadius()));
     }
 }
+
+

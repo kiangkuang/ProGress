@@ -37,7 +37,6 @@ import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.common.GooglePlayServicesRepairableException;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Place;
 import com.google.android.gms.location.places.ui.PlaceAutocomplete;
@@ -47,29 +46,18 @@ import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMarkerDragListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.Circle;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.pathsense.android.sdk.location.PathsenseLocationProviderApi;
 
-public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, OnMapClickListener, OnMarkerDragListener, GoogleApiClient.ConnectionCallbacks, ResultCallback<Status>, AdapterView.OnItemSelectedListener {
-
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, OnMapClickListener, OnMarkerDragListener, GoogleApiClient.ConnectionCallbacks, ResultCallback<com.google.android.gms.common.api.Status>, AdapterView.OnItemSelectedListener {
     private static final String TAG = "MainActivity";
-    private static final int DESTINATION = 1;
-    private static final int DISTANCE = 2;
     private static final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
 
     private static final int REQUEST_LOCATION_PERMISSION = 5001;
 
-    private int mode = 1; // destination or distance
-    private int step = 1;
-    private Marker searchMarker;
-    private Marker destinationMarker;
-    private Circle radiusCircle;
+    private Data data;
 
     private GoogleMap map;
     private GoogleApiClient googleApiClient;
@@ -114,7 +102,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onReceive(Context context, Intent intent) {
                 sendNotification(MainActivity.class, "ProGress", "Arrived!", Notification.PRIORITY_MAX, false);
                 mApi.removeGeofences();
-                setStep(3);
+                updateUiStatus(Status.READY);
             }
         };
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver,
@@ -140,9 +128,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
-    public void onMapReady(GoogleMap googleMap) {
-        map = googleMap;
-
+    public void onMapReady(GoogleMap gMap) {
+        map = gMap;
         enableMyLocation();
         map.getUiSettings().setZoomControlsEnabled(true);
         map.getUiSettings().setMapToolbarEnabled(false);
@@ -150,21 +137,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         map.setOnMapClickListener(this);
         map.setOnMarkerDragListener(this);
 
-        Data.load(this);
-        double loadedRadius = Data.radius; // placing destination would replace Data.radius, Data.mode, Data.step
-        int loadedMode = Data.mode;
-        int loadedStep = Data.step;
+        data = new Data(this, map);
+        data.load();
 
-        if (Data.destLat != 0 && Data.destLong != 0) {
-            placeDestinationMarker(new LatLng(Data.destLat, Data.destLong));
-        }
-        if (loadedRadius != 0) {
-            placeDistanceCircle(loadedRadius);
-        }
-
-        searchMarker = null;
-        setMode(loadedMode);
-        setStep(loadedStep);
+        updateUiMode(data.mode);
+        updateUiStatus(data.status);
     }
 
     private void enableMyLocation() {
@@ -194,11 +171,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
 
-        if (destinationMarker != null) {
-            double lat1 = Math.min(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
-            double lat2 = Math.max(lastLocation.getLatitude(), destinationMarker.getPosition().latitude);
-            double lng1 = Math.min(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
-            double lng2 = Math.max(lastLocation.getLongitude(), destinationMarker.getPosition().longitude);
+        if (data.destination != null) {
+            double lat1 = Math.min(lastLocation.getLatitude(), data.destination.getPosition().latitude);
+            double lat2 = Math.max(lastLocation.getLatitude(), data.destination.getPosition().latitude);
+            double lng1 = Math.min(lastLocation.getLongitude(), data.destination.getPosition().longitude);
+            double lng2 = Math.max(lastLocation.getLongitude(), data.destination.getPosition().longitude);
             LatLngBounds bounds = new LatLngBounds(new LatLng(lat1, lng1), new LatLng(lat2, lng2));
             map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 350));
         } else {
@@ -227,7 +204,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         enableMyLocation();
                         onConnected(null);
 
-                        if (step == 1) {
+                        if (data.status == Status.NONE) {
                             Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
                         }
                     } else if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
@@ -251,14 +228,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                                             System.exit(0);
                                         }
                                     })
-                                    .setIcon(android.R.drawable.ic_dialog_alert)
+                                    .setIcon(android.R.drawable.ic_menu_mylocation)
                                     .show();
                         } else {
                             //Never ask again selected, or device policy prohibits the app from having that permission.
                             //So, disable that feature, or fall back to another situation...
                             new AlertDialog.Builder(this)
                                     .setTitle("Permission")
-                                    .setMessage("Location access was not granted.\nPlease allow manually in phone settings.")
+                                    .setMessage("Location access was not granted.\nPlease allow manually in phone Settings > Apps > Status")
                                     .setNegativeButton("Quit", new DialogInterface.OnClickListener() {
                                         public void onClick(DialogInterface dialog, int which) {
                                             MainActivity.this.finish();
@@ -277,192 +254,142 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onMapClick(LatLng latLng) {
-        if (step < 4) {
-            if (mode == DESTINATION) {
+        if (data.status != Status.STARTED) {
+            if (data.mode == Mode.DESTINATION) {
                 placeDestinationMarker(latLng);
-            } else if (mode == DISTANCE) {
+            } else if (data.mode == Mode.DISTANCE) {
                 placeDistanceCircle(latLng);
             }
         }
-        Data.save(this, mode, step, destinationMarker, radiusCircle);
+        data.save();
     }
 
     private void placeDestinationMarker(LatLng latLng) {
-        if (destinationMarker == null) {
-            destinationMarker = map.addMarker(new MarkerOptions()
-                    .position(latLng)
-                    .draggable(true)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
-                    .title("Destination")
-                    .snippet("Hold marker to drag to new position")
-                    .alpha(0.7f));
-        } else {
-            destinationMarker.setPosition(latLng);
-            if (radiusCircle != null) {
-                radiusCircle.setCenter(latLng);
-            }
-        }
+        data.setDestination(latLng);
 
         // first time after destination placed, auto jump to distance mode
-        if (Data.step == 1) {
-            Toast.makeText(getApplicationContext(), "Tap the map to set alarm radius", Toast.LENGTH_SHORT).show();
-            setMode(DISTANCE);
-            setStep(2);
+        if (data.status == Status.NONE) {
+            Toast.makeText(getApplicationContext(), "Tap the map to set alarm distance", Toast.LENGTH_SHORT).show();
+
+            updateUiMode(Mode.DISTANCE);
+            updateUiStatus(Status.HALF);
         }
     }
 
     private void placeDistanceCircle(LatLng latLng) {
-        placeDistanceCircle(Math.max(toRadiusMeters(destinationMarker.getPosition(), latLng), 50));
+        placeDistanceCircle(toRadiusMeters(data.destination.getPosition(), latLng));
     }
 
     private void placeDistanceCircle(double radius) {
-        if (radiusCircle == null) {
-            radiusCircle = map.addCircle(new CircleOptions()
-                    .center(destinationMarker.getPosition())
-                    .radius(Math.max(radius, 100))
-                    .fillColor(Color.argb(50, 0, 0, 255))
-                    .strokeColor(Color.argb(100, 0, 0, 255)));
-        } else {
-            radiusCircle.setRadius(Math.max(radius, 100));
+        data.setDistance(radius);
+
+        if (data.status == Status.HALF) {
+            updateUiStatus(Status.READY);
         }
 
-        if (Data.step == 2) {
-            setStep(3);
-        }
-
-        destinationMarker.setSnippet("Alarm radius: " + (int) radiusCircle.getRadius() + "m");
+        data.destination.setSnippet("Alarm distance: " + (int) data.distance.getRadius() + "m");
     }
 
     @Override
     public void onMarkerDragStart(Marker marker) {
-        if (radiusCircle != null) {
-            radiusCircle.setCenter(marker.getPosition());
-            radiusCircle.setFillColor(Color.argb(0, 0, 0, 255));
-            radiusCircle.setStrokeColor(Color.argb(50, 0, 0, 255));
+        if (data.distance != null) {
+            data.distance.setCenter(marker.getPosition());
+            data.distance.setFillColor(Color.argb(0, 0, 0, 255));
+            data.distance.setStrokeColor(Color.argb(50, 0, 0, 255));
         }
         marker.setAlpha(0.5f);
     }
 
     @Override
     public void onMarkerDrag(Marker marker) {
-        if (radiusCircle != null) {
-            radiusCircle.setCenter(marker.getPosition());
+        if (data.distance != null) {
+            data.distance.setCenter(marker.getPosition());
         }
     }
 
     @Override
     public void onMarkerDragEnd(Marker marker) {
-        if (radiusCircle != null) {
-            radiusCircle.setCenter(marker.getPosition());
-            radiusCircle.setFillColor(Color.argb(50, 0, 0, 255));
-            radiusCircle.setStrokeColor(Color.argb(100, 0, 0, 255));
+        if (data.distance != null) {
+            data.distance.setCenter(marker.getPosition());
+            data.distance.setFillColor(Color.argb(50, 0, 0, 255));
+            data.distance.setStrokeColor(Color.argb(100, 0, 0, 255));
         }
         marker.setAlpha(0.7f);
-        Data.save(this, mode, step, destinationMarker, radiusCircle);
+        data.save();
     }
 
-    public void toggledButton(View view) {
-        ToggleButton toggleButton = (ToggleButton) view;
-        if (toggleButton.getText().toString().equals(getString(R.string.setDestination))) {
-            setMode(DESTINATION);
-        } else if (toggleButton.getText().toString().equals(getString(R.string.setDistance))) {
-            setMode(DISTANCE);
-        }
-    }
-
-    private void setMode(int mode) {
+    private void updateUiMode(Mode mode) {
         ToggleButton destinationToggle = (ToggleButton) findViewById(R.id.destinationToggle);
         ToggleButton distanceToggle = (ToggleButton) findViewById(R.id.distanceToggle);
 
-        if (mode == DESTINATION) {
+        if (mode == Mode.DESTINATION) {
             destinationToggle.setChecked(true);
             distanceToggle.setChecked(false);
 
-        } else if (mode == DISTANCE) {
+        } else if (mode == Mode.DISTANCE) {
             destinationToggle.setChecked(false);
             distanceToggle.setChecked(true);
         }
 
-        this.mode = mode;
-        Data.save(this, mode, step, destinationMarker, radiusCircle);
+        data.setMode(mode).save();
     }
 
-    private void setStep(int step) {
+    private void updateUiStatus(Status status) {
         ToggleButton destinationToggle = (ToggleButton) findViewById(R.id.destinationToggle);
         ToggleButton distanceToggle = (ToggleButton) findViewById(R.id.distanceToggle);
         Button clear = (Button) findViewById(R.id.clear);
         Button start = (Button) findViewById(R.id.start);
 
-        switch (step) {
-            case 1: // init
-                destinationToggle.setEnabled(true);
-                distanceToggle.setEnabled(false);
-                clear.setEnabled(false);
-                clear.setTextColor(0x55cc0000);
-                start.setEnabled(false);
-                start.setTextColor(0x55669900);
-                start.setText(R.string.start);
-                break;
-            case 2: // destination done
-                destinationToggle.setEnabled(true);
-                distanceToggle.setEnabled(true);
-                clear.setEnabled(true);
-                clear.setTextColor(0xffcc0000);
-                start.setEnabled(false);
-                start.setTextColor(0x55669900);
-                start.setText(R.string.start);
-                break;
-            case 3: // distance done
-                destinationToggle.setEnabled(true);
-                distanceToggle.setEnabled(true);
-                clear.setEnabled(true);
-                clear.setTextColor(0xffcc0000);
-                start.setEnabled(true);
-                start.setTextColor(0xff669900);
-                start.setText(R.string.start);
-                break;
-            case 4: // started
-                destinationToggle.setEnabled(false);
-                distanceToggle.setEnabled(false);
-                clear.setEnabled(false);
-                clear.setTextColor(0x55cc0000);
-                start.setEnabled(true);
-                start.setTextColor(0xff669900);
-                start.setText(R.string.stop);
-                break;
+        destinationToggle.setEnabled(status != Status.STARTED);
+        distanceToggle.setEnabled(status == Status.HALF || status == Status.READY);
+        clear.setEnabled(status == Status.HALF || status == Status.READY);
+        clear.setTextColor(status == Status.HALF || status == Status.READY ? 0xffcc0000 : 0x55cc0000);
+        start.setEnabled(status == Status.READY || status == Status.STARTED);
+        start.setTextColor(status == Status.READY || status == Status.STARTED ? 0xff669900 : 0x55669900);
+        start.setText(status == Status.STARTED ? R.string.stop : R.string.start);
+
+        data.setStatus(status).save();
+    }
+
+    public void toggledButton(View view) {
+        ToggleButton toggleButton = (ToggleButton) view;
+        if (toggleButton.getText().toString().equals(getString(R.string.setDestination))) {
+            data.setMode(Mode.DESTINATION);
+        } else if (toggleButton.getText().toString().equals(getString(R.string.setDistance))) {
+            data.setMode(Mode.DISTANCE);
         }
-        this.step = step;
-        Data.save(this, mode, step, destinationMarker, radiusCircle);
+
+        updateUiMode(data.mode);
     }
 
     public void clearButton(View view) {
-        if (destinationMarker != null) {
-            destinationMarker.remove();
-            destinationMarker = null;
+        if (data.destination != null) {
+            data.destination.remove();
+            data.destination = null;
         }
 
-        if (radiusCircle != null) {
-            radiusCircle.remove();
-            radiusCircle = null;
+        if (data.distance != null) {
+            data.distance.remove();
+            data.distance = null;
         }
 
-        setMode(DESTINATION);
-        setStep(1);
+        updateUiMode(Mode.DESTINATION);
+        updateUiStatus(Status.NONE);
 
         Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
     }
 
     public void startButton(View view) {
-        if (step != 4) {
+        if (data.status != Status.STARTED) {
             // start
-            setStep(4);
+            updateUiStatus(Status.STARTED);
 
             startGeofence();
 
             sendNotification(MainActivity.class, "ProGress", "Alarm enabled", Notification.PRIORITY_HIGH, true);
         } else {
             // stop
-            setStep(3);
+            updateUiStatus(Status.READY);
 
             stopGeofence();
 
@@ -472,7 +399,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void startGeofence() {
-        mApi.addGeofence("MYGEOFENCE", destinationMarker.getPosition().latitude, destinationMarker.getPosition().longitude, (int) radiusCircle.getRadius(), PathsenseGeofenceGeofenceEventReceiver.class);
+        mApi.addGeofence("MYGEOFENCE", data.destination.getPosition().latitude, data.destination.getPosition().longitude, (int) data.distance.getRadius(), PathsenseGeofenceGeofenceEventReceiver.class);
     }
 
     private void stopGeofence() {
@@ -493,7 +420,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             builder.setOngoing(true);
         } else {
             builder.setAutoCancel(true);
-            builder.setVibrate(new long[]{0, 1000, 1000, 1000, 1000, 1000});
+            builder.setVibrate(new long[]{0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000});
             builder.setSound(Settings.System.DEFAULT_ALARM_ALERT_URI);
         }
 
@@ -521,24 +448,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         if (requestCode == PLACE_AUTOCOMPLETE_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
-                Place place = PlaceAutocomplete.getPlace(this, data);
+                Place place = PlaceAutocomplete.getPlace(this, intent);
 
-                if (searchMarker != null) {
-                    searchMarker.remove();
-                }
-
-                searchMarker = map.addMarker(new MarkerOptions()
-                        .position(place.getLatLng())
-                        .title(place.getName().toString())
-                        .snippet(place.getAddress().toString())
-                        .alpha(0.7f));
+                data.setSearch(place);
 
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15));
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
-                Status status = PlaceAutocomplete.getStatus(this, data);
+                com.google.android.gms.common.api.Status status = PlaceAutocomplete.getStatus(this, intent);
                 Toast.makeText(MainActivity.this, "Search error", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, status.getStatusMessage());
             }
@@ -576,7 +495,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
-    public void onResult(@NonNull Status status) {
+    public void onResult(@NonNull com.google.android.gms.common.api.Status status) {
         Log.i(TAG, "MA: " + status.toString());
     }
 
@@ -598,8 +517,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.cancelAll();
 
-        if (step == 4) {
-            setStep(3);
+        if (data.status == Status.STARTED) {
+            updateUiStatus(Status.READY);
         }
 
         super.onDestroy();

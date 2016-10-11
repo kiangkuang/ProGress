@@ -16,8 +16,7 @@ public class PathsenseGeofenceGeofenceEventReceiver extends PathsenseGeofenceEve
     protected void onGeofenceEvent(Context context, PathsenseGeofenceEvent geofenceEvent) {
         Log.i(TAG, "geofence = " + geofenceEvent.getGeofenceId() + ", " + geofenceEvent.getLatitude() + ", " + geofenceEvent.getLongitude() + ", " + geofenceEvent.getRadius());
         //
-        if (geofenceEvent.isIngress())
-        {
+        if (geofenceEvent.isIngress()) {
             Location location = geofenceEvent.getLocation();
             Log.i(TAG, "geofenceIngress = " + location.getTime() + ", " + location.getProvider() + ", " + location.getLatitude() + ", " + location.getLongitude() + ", " + location.getAltitude() + ", " + location.getSpeed() + ", " + location.getBearing() + ", " + location.getAccuracy());
             // broadcast event
