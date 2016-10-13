@@ -269,7 +269,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // first time after destination placed, auto jump to distance mode
         if (data.status == Status.NONE) {
-            Toast.makeText(getApplicationContext(), "Tap the mMap to set alarm distance", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "Tap the map to set alarm distance", Toast.LENGTH_SHORT).show();
 
             updateUiMode(Mode.DISTANCE);
             updateUiStatus(Status.HALF);
@@ -378,7 +378,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         updateUiMode(Mode.DESTINATION);
         updateUiStatus(Status.NONE);
 
-        Toast.makeText(getApplicationContext(), "Tap the mMap to set destination", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
     }
 
     public void startButton(View view) {
