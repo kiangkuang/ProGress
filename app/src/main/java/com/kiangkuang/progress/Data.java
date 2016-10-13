@@ -21,12 +21,12 @@ public class Data {
     public Marker destination;
     public Circle distance;
     public Marker search;
-    private Activity activity;
-    private GoogleMap map;
+    private Activity mActivity;
+    private GoogleMap mMap;
 
     public Data(Activity activity, GoogleMap map) {
-        this.activity = activity;
-        this.map = map;
+        mActivity = activity;
+        mMap = map;
 
         mode = Mode.DESTINATION;
         status = Status.NONE;
@@ -47,7 +47,7 @@ public class Data {
 
     public Data setDestination(LatLng latLng) {
         if (destination == null) {
-            destination = map.addMarker(new MarkerOptions()
+            destination = mMap.addMarker(new MarkerOptions()
                     .position(latLng)
                     .draggable(true)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN))
@@ -68,7 +68,7 @@ public class Data {
         if (search != null) {
             search.remove();
         }
-        search = map.addMarker(new MarkerOptions()
+        search = mMap.addMarker(new MarkerOptions()
                 .position(place.getLatLng())
                 .title(place.getName().toString())
                 .snippet(place.getAddress().toString())
@@ -79,7 +79,7 @@ public class Data {
 
     public Data setDistance(double radius) {
         if (distance == null) {
-            distance = map.addCircle(new CircleOptions()
+            distance = mMap.addCircle(new CircleOptions()
                     .center(destination.getPosition())
                     .radius(Math.max(radius, 50))
                     .fillColor(Color.argb(50, 0, 0, 255))
@@ -91,7 +91,7 @@ public class Data {
     }
 
     public void save() {
-        SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences sharedPref = mActivity.getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
         editor.putInt("mode", mode.value);
         editor.putInt("status", status.value);
@@ -103,7 +103,7 @@ public class Data {
     }
 
     public void load() {
-        SharedPreferences sharedPref = activity.getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences sharedPref = mActivity.getPreferences(Context.MODE_PRIVATE);
         mode = Mode.valueOf(sharedPref.getInt("mode", 0));
         status = Status.valueOf(sharedPref.getInt("status", 0));
 
