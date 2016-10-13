@@ -53,32 +53,32 @@ import com.pathsense.android.sdk.location.PathsenseLocationProviderApi;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, OnMapClickListener, OnMarkerDragListener, GoogleApiClient.ConnectionCallbacks, ResultCallback<com.google.android.gms.common.api.Status>, AdapterView.OnItemSelectedListener {
     private static final String TAG = "MainActivity";
-    private static final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
-
+    private static final String GEOFENCE_NAME = "ProgressGeofence";
     private static final int REQUEST_LOCATION_PERMISSION = 5001;
+    private static final int PLACE_AUTOCOMPLETE_REQUEST_CODE = 5002;
+
+    private GoogleMap mMap;
+    private GoogleApiClient mGoogleApiClient;
+    private NotificationManager mNotificationManager;
+    private PathsenseLocationProviderApi mPathsenseApi;
+    private BroadcastReceiver mMessageReceiver;
 
     private Data data;
-
-    private GoogleMap map;
-    private GoogleApiClient googleApiClient;
-    private NotificationManager notificationManager;
-    private PathsenseLocationProviderApi mApi;
-    private BroadcastReceiver mMessageReceiver;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_my, menu);
+        getMenuInflater().inflate(R.menu.main_activity_map_menu, menu);
         return true;
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_maps);
+        setContentView(R.layout.main_activity);
 
-        Toolbar myToolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(myToolbar);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.main_activity_toolbar);
+        setSupportActionBar(toolbar);
 
         Spinner spinner = (Spinner) findViewById(R.id.mapType);
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
@@ -89,55 +89,55 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         initMap();
 
-        if (googleApiClient == null) {
-            googleApiClient = new GoogleApiClient.Builder(this)
+        if (mGoogleApiClient == null) {
+            mGoogleApiClient = new GoogleApiClient.Builder(this)
                     .addConnectionCallbacks(this)
                     .addApi(LocationServices.API)
                     .build();
         }
-        mApi = PathsenseLocationProviderApi.getInstance(this);
+        mPathsenseApi = PathsenseLocationProviderApi.getInstance(this);
 
         mMessageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 sendNotification(MainActivity.class, "ProGress", "Arrived!", Notification.PRIORITY_MAX, false);
-                mApi.removeGeofences();
+                mPathsenseApi.removeGeofences();
                 updateUiStatus(Status.READY);
             }
         };
         LocalBroadcastManager.getInstance(this).registerReceiver(mMessageReceiver,
-                new IntentFilter("geofenceEvent"));
+                new IntentFilter(GeofenceEventReceiver.GEOFENCE_INTENT));
     }
 
     @Override
     protected void onStart() {
-        googleApiClient.connect();
+        mGoogleApiClient.connect();
         super.onStart();
     }
 
     @Override
     protected void onStop() {
-        googleApiClient.disconnect();
+        mGoogleApiClient.disconnect();
         super.onStop();
     }
 
     private void initMap() {
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        // Obtain the SupportMapFragment and get notified when the mMap is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
 
     @Override
     public void onMapReady(GoogleMap gMap) {
-        map = gMap;
+        mMap = gMap;
         enableMyLocation();
-        map.getUiSettings().setZoomControlsEnabled(true);
-        map.getUiSettings().setMapToolbarEnabled(false);
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.getUiSettings().setMapToolbarEnabled(false);
 
-        map.setOnMapClickListener(this);
-        map.setOnMarkerDragListener(this);
+        mMap.setOnMapClickListener(this);
+        mMap.setOnMarkerDragListener(this);
 
-        data = new Data(this, map);
+        data = new Data(this, mMap);
         data.load();
 
         updateUiMode(data.mode);
@@ -160,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return;
         }
 
-        map.setMyLocationEnabled(true);
+        mMap.setMyLocationEnabled(true);
     }
 
     @Override
@@ -177,15 +177,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             double lng1 = Math.min(lastLocation.getLongitude(), data.destination.getPosition().longitude);
             double lng2 = Math.max(lastLocation.getLongitude(), data.destination.getPosition().longitude);
             LatLngBounds bounds = new LatLngBounds(new LatLng(lat1, lng1), new LatLng(lat2, lng2));
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 350));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 350));
         } else {
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), 15));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()), 15));
         }
     }
 
     @SuppressWarnings("MissingPermission")
     private Location getLastLocation() {
-        return LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
+        return LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             //So, disable that feature, or fall back to another situation...
                             new AlertDialog.Builder(this)
                                     .setTitle("Permission")
-                                    .setMessage("Location access was not granted.\nPlease allow manually in phone Settings > Apps > Status")
+                                    .setMessage("Location access was not granted.\nPlease enable permission manually in phone Settings > Apps > ProGress.")
                                     .setNegativeButton("Quit", new DialogInterface.OnClickListener() {
                                         public void onClick(DialogInterface dialog, int which) {
                                             MainActivity.this.finish();
@@ -269,7 +269,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // first time after destination placed, auto jump to distance mode
         if (data.status == Status.NONE) {
-            Toast.makeText(getApplicationContext(), "Tap the map to set alarm distance", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getApplicationContext(), "Tap the mMap to set alarm distance", Toast.LENGTH_SHORT).show();
 
             updateUiMode(Mode.DISTANCE);
             updateUiStatus(Status.HALF);
@@ -348,6 +348,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         start.setTextColor(status == Status.READY || status == Status.STARTED ? 0xff669900 : 0x55669900);
         start.setText(status == Status.STARTED ? R.string.stop : R.string.start);
 
+        if (data.destination != null) data.destination.setDraggable(status != Status.STARTED);
+
         data.setStatus(status).save();
     }
 
@@ -376,7 +378,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         updateUiMode(Mode.DESTINATION);
         updateUiStatus(Status.NONE);
 
-        Toast.makeText(getApplicationContext(), "Tap the map to set destination", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getApplicationContext(), "Tap the mMap to set destination", Toast.LENGTH_SHORT).show();
     }
 
     public void startButton(View view) {
@@ -393,17 +395,17 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             stopGeofence();
 
-            notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            notificationManager.cancelAll();
+            mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            mNotificationManager.cancelAll();
         }
     }
 
     private void startGeofence() {
-        mApi.addGeofence("MYGEOFENCE", data.destination.getPosition().latitude, data.destination.getPosition().longitude, (int) data.distance.getRadius(), PathsenseGeofenceGeofenceEventReceiver.class);
+        mPathsenseApi.addGeofence(GEOFENCE_NAME, data.destination.getPosition().latitude, data.destination.getPosition().longitude, (int) data.distance.getRadius(), GeofenceEventReceiver.class);
     }
 
     private void stopGeofence() {
-        mApi.removeGeofences();
+        mPathsenseApi.removeGeofences();
     }
 
     private void sendNotification(Class cls, String title, String text, int priority, boolean ongoing) {
@@ -424,8 +426,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             builder.setSound(Settings.System.DEFAULT_ALARM_ALERT_URI);
         }
 
-        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(0, builder.build());
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(0, builder.build());
     }
 
     private PendingIntent getPendingIntent(Class cls) {
@@ -455,7 +457,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 data.setSearch(place);
 
-                map.animateCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15));
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(place.getLatLng(), 15));
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
                 com.google.android.gms.common.api.Status status = PlaceAutocomplete.getStatus(this, intent);
                 Toast.makeText(MainActivity.this, "Search error", Toast.LENGTH_SHORT).show();
@@ -466,18 +468,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-        if (map == null) return;
+        if (mMap == null) return;
 
         Spinner spinner = (Spinner) findViewById(R.id.mapType);
         String layerName = ((String) spinner.getSelectedItem());
         if (layerName.equals(getString(R.string.normal))) {
-            map.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+            mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
         } else if (layerName.equals(getString(R.string.hybrid))) {
-            map.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+            mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
         } else if (layerName.equals(getString(R.string.satellite))) {
-            map.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+            mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
         } else if (layerName.equals(getString(R.string.terrain))) {
-            map.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
+            mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
         } else {
             Log.i("LDA", "Error setting layer with name " + layerName);
         }
@@ -514,8 +516,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         stopGeofence();
 
-        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancelAll();
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.cancelAll();
 
         if (data.status == Status.STARTED) {
             updateUiStatus(Status.READY);
