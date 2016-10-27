@@ -45,7 +45,7 @@
         </activity>
 
         <receiver
-            android:name=".PathsenseGeofenceGeofenceEventReceiver"
+            android:name=".GeofenceEventReceiver"
             android:enabled="true"
             android:exported="true" />
     </application>
