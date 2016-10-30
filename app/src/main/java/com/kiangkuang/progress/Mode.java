@@ -1,26 +1,35 @@
 package com.kiangkuang.progress;
 
-import java.util.HashMap;
+import android.support.annotation.NonNull;
+import android.support.v4.util.LongSparseArray;
 
 public enum Mode {
-    DESTINATION(0),
-    DISTANCE(1);
+  DESTINATION(1),
+  DISTANCE(2),
 
-    private static HashMap<Integer, Mode> hMap = new HashMap<Integer, Mode>();
+  NONE(0);
 
-    static {
-        for (Mode mode : Mode.values()) {
-            hMap.put(mode.value, mode);
-        }
+  private final long id;
+
+  Mode(long id) {
+    this.id = id;
+  }
+
+  public long getId() {
+    return id;
+  }
+
+  private static final LongSparseArray<Mode> idModeMap = new LongSparseArray<>();
+
+  static {
+    for (Mode mode : Mode.values()) {
+      idModeMap.put(mode.getId(), mode);
     }
+  }
 
-    public final int value;
-
-    Mode(int value) {
-        this.value = value;
-    }
-
-    public static Mode valueOf(int value) {
-        return hMap.get(value);
-    }
+  @NonNull
+  public static Mode fromId(long id) {
+    Mode match = idModeMap.get(id);
+    return match == null ? Mode.NONE : match;
+  }
 }
