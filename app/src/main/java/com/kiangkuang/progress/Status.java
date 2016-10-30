@@ -23,8 +23,8 @@ public enum Status {
   private static final LongSparseArray<Status> idStatusMap = new LongSparseArray<>();
 
   static {
-    for (Status type : Status.values()) {
-      idStatusMap.put(type.getId(), type);
+    for (Status status : Status.values()) {
+      idStatusMap.put(status.getId(), status);
     }
   }
 
