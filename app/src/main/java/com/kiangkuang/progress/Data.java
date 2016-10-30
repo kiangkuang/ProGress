@@ -94,7 +94,7 @@ public class Data {
         SharedPreferences sharedPref = mActivity.getPreferences(Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
         editor.putInt("mode", mode.value);
-        editor.putInt("status", status.value);
+        editor.putLong("status", status.getId());
         editor.putFloat("destLat", (float) (destination == null ? 0 : destination.getPosition().latitude));
         editor.putFloat("destLong", (float) (destination == null ? 0 : destination.getPosition().longitude));
         editor.putFloat("distance", (float) (distance == null ? 0 : distance.getRadius()));
@@ -105,7 +105,7 @@ public class Data {
     public void load() {
         SharedPreferences sharedPref = mActivity.getPreferences(Context.MODE_PRIVATE);
         mode = Mode.valueOf(sharedPref.getInt("mode", 0));
-        status = Status.valueOf(sharedPref.getInt("status", 0));
+        status = Status.fromId(sharedPref.getLong("status", 0));
 
         double destLat = (double) sharedPref.getFloat("destLat", 0);
         double destLong = (double) sharedPref.getFloat("destLong", 0);
